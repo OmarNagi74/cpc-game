@@ -7,7 +7,7 @@
    GET /api/stats   (optional ?stations=N to override the count)
    ============================================================================ */
 
-const { kv } = require("@vercel/kv");
+const { kv, resolveConfig } = require("../lib/kv");
 
 module.exports = async function handler(req, res) {
   const total = parseInt(req.query.stations || "5", 10);
@@ -34,6 +34,15 @@ module.exports = async function handler(req, res) {
       updatedAt: new Date().toISOString()
     });
   } catch (err) {
-    return res.status(200).json({ ok: false, error: String((err && err.message) || err) });
+    const c = resolveConfig();
+    const present = Object.keys(process.env).filter(function (k) {
+      return /KV_|UPSTASH|REDIS/.test(k);
+    }).sort();
+    return res.status(200).json({
+      ok: false,
+      error: String((err && err.message) || err),
+      resolved: { urlVar: c.urlName || null, tokenVar: c.tokenName || null },
+      kvEnvVarsPresent: present
+    });
   }
 };

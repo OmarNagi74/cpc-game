@@ -23,7 +23,7 @@
    game never breaks; it just can't persist that one call.
    ============================================================================ */
 
-const { kv } = require("@vercel/kv");
+const { kv } = require("../lib/kv");
 const { mergeState } = require("../lib/state-core");
 
 const STATE_TTL_SECONDS = 60 * 60 * 24 * 14; // keep progress 14 days
