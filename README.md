@@ -68,8 +68,7 @@ stationNames: {
 
 ```js
 communityLinks: [
-  { label: "جروب المجتمع على تيليجرام",  url: "https://t.me/your_community" },
-  { label: "صفحة المجتمع على فيسبوك",    url: "https://facebook.com/your_community" }
+  { label: "صفحة المجتمع على فيسبوك", url: "https://www.facebook.com/share/19x1CAuuqB/?mibextid=wwXIfr" }
 ]
 ```
 
