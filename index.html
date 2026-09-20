@@ -354,7 +354,6 @@
       <div class="kicker" id="final-event"></div>
       <h1 id="final-title"></h1>
       <p class="lead muted" id="final-message" style="margin-top:10px;"></p>
-      <div class="grade" id="final-grade"></div>
     </div>
 
     <div class="card">
@@ -632,6 +631,14 @@
     if (seq !== syncSeq) return; // a newer scan already took over
     if (!json || !json.ok || !Array.isArray(json.visited)) return;
 
+    if (json.wrong && Number.isInteger(json.expected)) {
+      saveVisited(json.visited);
+      saveNextStop(json.expected);
+      if (Number.isInteger(json.scans)) storageSet(SCANS_KEY, json.scans);
+      renderWrongStation(json.expected);
+      return;
+    }
+
     // adopt the authoritative state from the server
     saveVisited(json.visited);
     if (json.next != null) saveNextStop(json.next);
@@ -778,11 +785,6 @@
     document.getElementById("final-title").textContent = CONFIG.finalTitle;
     document.getElementById("final-message").textContent = CONFIG.finalMessage;
 
-    const g = gradeFor(scans);
-    const gradeEl = document.getElementById("final-grade");
-    gradeEl.className = "grade " + g.cls;
-    gradeEl.textContent = "جايزتك: " + g.name;
-
     document.getElementById("final-score").textContent = computeScore(visitedCount);
     document.getElementById("final-scans").textContent = scans;
     document.getElementById("final-count").textContent = CONFIG.totalStations;
@@ -844,6 +846,22 @@
     showScreen("screen-station");
   }
 
+  function renderWrongStation(expected) {
+    const visited = getVisited();
+    const noteEl = document.getElementById("station-already");
+
+    document.getElementById("event-bar").textContent = CONFIG.eventName;
+    buildProgress(visited);
+    refreshScore(visited.length);
+    document.getElementById("station-kicker").textContent = "استنى كده!";
+    document.getElementById("station-title").textContent = "دي مش المحطة المطلوبة";
+    noteEl.textContent = "ولا يهمك، إنت دخلت مكان تاني. روح لـ" + stationName(expected) + " وامسح الكود هناك.";
+    noteEl.style.display = "block";
+    document.getElementById("station-next-name").textContent = stationName(expected);
+    document.getElementById("station-next-hint").textContent = "كل حاجة تمام، كمل للمكان الصح.";
+    showScreen("screen-station");
+  }
+
   // ---------------- main ----------------
   function run() {
     const params = new URLSearchParams(window.location.search);
@@ -866,10 +884,15 @@
       return;
     }
 
+    const visited = getVisited();
+    const assignedNext = getNextStop();
+    if (visited.length > 0 && Number.isInteger(assignedNext) && station !== assignedNext) {
+      renderWrongStation(assignedNext);
+      return;
+    }
+
     const scanned = getScans();
     incrScans();
-
-    const visited = getVisited();
     const wasAlreadyVisited = visited.includes(station);
     let gainedPoints = 0;
     if (!wasAlreadyVisited) {

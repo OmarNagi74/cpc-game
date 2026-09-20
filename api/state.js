@@ -55,6 +55,20 @@ module.exports = async function handler(req, res) {
       let server = null;
       try { server = await kv.get("cpc:state:" + visitorId); } catch (e) { server = null; }
 
+      if (server && Number.isInteger(server.next) && station !== server.next) {
+        return res.status(200).json({
+          ok: true,
+          accepted: false,
+          wrong: true,
+          expected: server.next,
+          visited: Array.isArray(server.visited) ? server.visited : [],
+          next: server.next,
+          scans: Number.isInteger(server.scans) ? server.scans : 0,
+          done: false,
+          totalStations: total
+        });
+      }
+
       const merged = mergeState(
         server,
         { visited: body.visited, next: body.next },
