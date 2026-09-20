@@ -11,8 +11,12 @@ QR was scanned** via a Google Sheet.
 | --- | --- |
 | `index.html` | The game itself (single self-contained file, no build step) |
 | `generate_qrcodes.js` | Generates the 5 QR codes + a printable sheet (Node.js) |
-| `package.json` | Just declares the one dependency (`qrcode`) |
-| `google_apps_script.gs` | Copy-paste code for the admin scan counter (optional) |
+| `package.json` | Dependencies: `qrcode` + `@vercel/kv` |
+| `google_apps_script.gs` | *Optional* copy-paste code for a sheet-based counter (you now also get a real one via the API below) |
+| `api/state.js` + `api/stats.js` | Vercel serverless functions: save progress server-side + admin counts |
+| `lib/state-core.js` | Shared pure game-logic used by the API |
+| `admin.html` | Admin dashboard at `/admin.html` — scan counts + progress stats |
+| `vercel.json` | Vercel function settings |
 | `output/` | Created by the generator — station PNGs + print sheet (generated, not committed) |
 
 ---
@@ -138,8 +142,43 @@ tracking: {
 Every scan now appends a row (Timestamp, Station, Kind new/repeat, progress
 count, Event, User agent) to a sheet tab called `logs`.
 
-> If you don't set this up, the game still works — tracking just stays off.
+If you don't set this up, the game still works — tracking just stays off.
 > Each visitor's own progress is always saved privately in their browser.
+
+---
+
+## Step 5b (recommended) — Real server-side saving with Vercel KV
+
+This makes progress **save on the deployment**: even if the phone's browser
+wipes its own storage between QR scans, the player's progress is restored
+from the server.
+
+Two-minute setup (one time):
+
+1. Open your project in the **Vercel dashboard**.
+2. Go to **Storage → Create Database → KV** (the free tier is fine) → **Connect**
+   to this project. Vercel adds the needed environment variables automatically.
+3. That's it — the repo already ships the API. Vercel auto-installs and
+   deploys the new functions on the next push.
+
+How it behaves:
+- Every scan posts to `/api/state` with a persistent per-device id. The server
+  merges and stores the authoritative `visited` list (14-day TTL) and returns
+  it, so a wiped browser instantly recovers its place.
+- If the network fails or KV isn't connected, the game silently falls back to
+  the device-local saving — it never breaks.
+- `?reset=1` and "العب تاني من الأول" clear the server state for that visitor
+  too.
+- Toggle: `CONFIG.server.enabled` in `index.html` (defaults to `true`).
+
+> Honest limit: the server only knows a visitor by the id stored in their
+> browser. If a phone fully wipes its browser data *and* cookies between two
+> scans, a new id is created and the server can't join the sessions — there is
+> no way around that on any static-served app.
+
+**Admin counts:** open `https://<your-domain>/admin.html` for a live dashboard —
+per-station scan counts, total scans, unique visitors, and how many players
+finished the hunt.
 
 ---
 

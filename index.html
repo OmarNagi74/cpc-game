@@ -423,6 +423,16 @@
     tracking: {
       enabled: false,
       scriptUrl: ""   // ← حط هنا رابط الـ Web app بتاع Apps Script
+    },
+
+    /* ============================================================
+       الحفظ على السيرفر (Vercel API) — لازم يفضل مفتّح علطول.
+       الحالة بتتحفظ في Vercel KV، ولو الموبايل مسح أخزانه تفضل
+       ترجع كاملة من السيرفر. /api/stats يعرض العدادات للمسؤول.
+       ============================================================ */
+    server: {
+      enabled: true,        // ← فعّل حفظ الحالة على السيرفر
+      endpoint: "/api/state" // Vercel Function على نفس الدومين
     }
   };
 
@@ -451,6 +461,7 @@
   const STORAGE_KEY = "labs_hunt_v1";        // visited station numbers (array)
   const NEXT_KEY = "labs_hunt_v1_next";      // assigned next stop (number)
   const SCANS_KEY = "labs_hunt_v1_scans";    // total scans counter
+  const VISITOR_KEY = "labs_hunt_v1_visitor"; // persistent visitor id (ties scans together)
 
   // ---------------- persistence layer (multi-backend, safe) ----------------
   /* The game must keep progress across QR scans. Some phones open QR links in
@@ -522,6 +533,20 @@
     return (CONFIG.stationNames && CONFIG.stationNames[n]) ? CONFIG.stationNames[n] : ("معمل " + n);
   }
 
+  // Persistent visitor id — kept across scans so the server (and the admin
+  // counter) sees one player, and progress can be restored server-side.
+  function getVisitorId() {
+    let id = storageGet(VISITOR_KEY);
+    if (typeof id === "string" && id.length >= 8) return id;
+    let fresh = "";
+    try {
+      if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") fresh = globalThis.crypto.randomUUID();
+    } catch (e) { fresh = ""; }
+    if (!fresh) fresh = "v" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 12);
+    storageSet(VISITOR_KEY, fresh);
+    return fresh;
+  }
+
   // ---------------- gamification helpers ----------------
   function computeScore(visitedCount) {
     let score = visitedCount * GAME.pointsPerLab;
@@ -552,6 +577,82 @@
       if (navigator.sendBeacon) navigator.sendBeacon(t.scriptUrl, body);
       else fetch(t.scriptUrl, { method: "POST", body: body, keepalive: true, mode: "no-cors" });
     } catch (e) { /* tracking must never break the game */ }
+  }
+
+  // ---------------- server-side save (Vercel API) ----------------
+  let syncSeq = 0;
+
+  /* Push this scan to the server and adopt the authoritative state back.
+     Fully graceful: if the network fails or the API is not set up, the game
+     just keeps using the device's local state (which already works). */
+  async function syncServer(station, wasAlreadyVisited) {
+    const s = CONFIG.server;
+    if (!s || !s.enabled || !s.endpoint) return;
+    const seq = ++syncSeq;
+    const ctrl = ("AbortController" in globalThis) ? new AbortController() : null;
+
+    const payload = {
+      visitorId: getVisitorId(),
+      station: station,
+      visited: getVisited(),
+      next: getNextStop(),
+      totalStations: CONFIG.totalStations
+    };
+
+    let json = null;
+    try {
+      const opts = {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      };
+      if (ctrl) { opts.signal = ctrl.signal; setTimeout(() => ctrl.abort(), 5000); }
+      const res = await fetch(s.endpoint, opts);
+      if (!res.ok) return;
+      json = await res.json();
+    } catch (e) { return; } // offline / API down → keep local-only flow
+
+    if (seq !== syncSeq) return; // a newer scan already took over
+    if (!json || !json.ok || !Array.isArray(json.visited)) return;
+
+    // adopt the authoritative state from the server
+    saveVisited(json.visited);
+    if (json.next != null) saveNextStop(json.next);
+    else clearNextStop();
+    if (Number.isInteger(json.scans)) storageSet(SCANS_KEY, json.scans);
+
+    const activeEl = document.querySelector(".screen.active");
+    const activeId = activeEl ? activeEl.id : "";
+
+    if (json.done) {
+      if (activeId !== "screen-final") {
+        clearNextStop();
+        renderFinal(json.visited.length, json.scans);
+      }
+      return;
+    }
+
+    if (activeId === "screen-station") {
+      const localVisited = getVisited();
+      const same =
+        localVisited.length === json.visited.length &&
+        localVisited.join(",") === json.visited.join(",") &&
+        (getNextStop() === json.next || (getNextStop() == null && json.next == null));
+      if (!same) renderStation(station, wasAlreadyVisited, json.next, 0);
+    }
+  }
+
+  // Fire-and-forget: wipe this visitor's saved server state (used by ?reset=1).
+  function fireReset() {
+    const s = CONFIG.server;
+    if (!s || !s.enabled || !s.endpoint) return;
+    try {
+      fetch(s.endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reset: true, visitorId: getVisitorId() })
+      }).catch(function () { /* ignore */ });
+    } catch (e) { /* ignore */ }
   }
 
   // ---------------- next-destination logic ----------------
@@ -733,6 +834,7 @@
     const rawStation = params.get("station");
 
     if (reset === "1") {
+      fireReset(); // clear server-side state too
       clearAll();
     }
 
@@ -765,14 +867,17 @@
       clearNextStop();
       track({ kind: "complete", visitedCount: visited.length, totalScans: scanned + 1 });
       renderFinal(visited.length, scanned + 1);
+      syncServer(station, wasAlreadyVisited); // record completion & counters
       return;
     }
 
     const next = resolveNext(station, visited);
     renderStation(station, wasAlreadyVisited, next, gainedPoints);
+    syncServer(station, wasAlreadyVisited);
   }
 
   document.getElementById("final-restart").addEventListener("click", function () {
+    fireReset(); // wipe server state for this visitor
     clearAll();
     renderWelcome();
   });

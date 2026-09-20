@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>عداد المسحات — خمس مشاكل… حل واحد</title>
+<!-- Google Font: Cairo (supports Arabic well) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f4f6fb; --card: #fff; --border: #e3e9f2; --text: #14203c; --muted: #5b6a8c;
+    --primary: #1d4ed8; --gold: #d99a06; --gold-soft: #fdf3d7; --gold-strong: #b47a04;
+    --red: #e11d48; --red-soft: #ffe4e6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b1220; --card: #131c31; --border: #243049; --text: #eef2ff; --muted: #93a1c3;
+      --primary: #4f7dff; --gold: #f5c84c; --gold-soft: #3a2f12; --gold-strong: #ffd97a;
+      --red: #fb4d6d; --red-soft: #3a1b26;
+    }
+  }
+  body {
+    font-family: "Cairo", sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh;
+    padding: env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0);
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 24px 18px 48px; }
+  h1 { font-size: 1.5rem; font-weight: 900; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 18px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; text-align: center; }
+  .stat b { display: block; font-size: 1.7rem; font-weight: 900; }
+  .stat span { color: var(--muted); font-size: 0.85rem; font-weight: 700; }
+  .stat.gold b { color: var(--gold-strong); }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+  th, td { padding: 12px 14px; text-align: right; border-bottom: 1px solid var(--border); }
+  th { background: var(--gold-soft); color: var(--gold-strong); font-size: 0.85rem; }
+  td { font-weight: 800; }
+  tr:last-child td { border-bottom: none; }
+  .bar { height: 10px; border-radius: 999px; background: var(--border); overflow: hidden; min-width: 90px; }
+  .bar i { display: block; height: 100%; background: var(--primary); }
+  .actions { display: flex; gap: 10px; margin: 18px 0; }
+  .btn { flex: 1; min-height: 48px; border: none; border-radius: 14px; font-family: inherit; font-size: 1rem; font-weight: 800; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-ghost { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+  .error { background: var(--red-soft); color: var(--red); border-radius: 12px; padding: 14px 16px; font-weight: 800; margin-bottom: 18px; }
+  .note { color: var(--muted); font-size: 0.85rem; margin-top: 18px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>عداد المسحات</h1>
+  <p class="sub">خمس مشاكل… حل واحد — لقطة حيّة من المتجر</p>
+
+  <div id="error" class="error" style="display:none;"></div>
+
+  <div class="grid">
+    <div class="stat gold"><b id="totalScans">–</b><span>إجمالي المسحات</span></div>
+    <div class="stat"><b id="uniqueVisitors">–</b><span>زوار مختلفين</span></div>
+    <div class="stat"><b id="completedPlayers">–</b><span>كمّلوا المطاردة</span></div>
+  </div>
+
+  <table>
+    <thead><tr><th>المعمل</th><th>مسحات</th><th>التوزيع</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="refresh">حدّث الأرقام</button>
+  </div>
+  <p class="note" id="lastUpdated"></p>
+</main>
+
+<script>
+  function $(id) { return document.getElementById(id); }
+
+  async function load() {
+    var err = $("error");
+    err.style.display = "none";
+    try {
+      var res = await fetch("/api/stats");
+      var data = await res.json();
+      if (!data.ok) throw new Error(data.error || "empty");
+      render(data);
+    } catch (e) {
+      err.textContent = "مش وصلنا للملخّص (متأكد إن Vercel KV متوصّل؟) — " + e.message;
+      err.style.display = "block";
+    }
+  }
+
+  function render(data) {
+    $("totalScans").textContent = data.totalScans;
+    $("uniqueVisitors").textContent = data.uniqueVisitors;
+    $("completedPlayers").textContent = data.completedPlayers;
+
+    var max = 1;
+    for (var i = 0; i < data.stations.length; i++) if (data.stations[i].scans > max) max = data.stations[i].scans;
+
+    var rows = $("rows");
+    rows.innerHTML = "";
+    for (var i = 0; i < data.stations.length; i++) {
+      var s = data.stations[i];
+      var tr = document.createElement("tr");
+      var bar = document.createElement("i");
+      bar.style.width = Math.round((s.scans / max) * 100) + "%";
+      tr.innerHTML =
+        "<td>معمل " + s.station + "</td>" +
+        "<td>" + s.scans + "</td>";
+      var tdBar = document.createElement("td");
+      var wrap = document.createElement("div");
+      wrap.className = "bar";
+      wrap.appendChild(bar);
+      tdBar.appendChild(wrap);
+      tr.appendChild(tdBar);
+      rows.appendChild(tr);
+    }
+    $("lastUpdated").textContent = "آخر تحديث: " + new Date(data.updatedAt).toLocaleString();
+  }
+
+  $("refresh").addEventListener("click", load);
+  load();
+</script>
+</body>
+</html>
