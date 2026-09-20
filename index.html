@@ -537,11 +537,14 @@
   // counter) sees one player, and progress can be restored server-side.
   function fallbackVisitorId() {
     const parts = [
-      navigator.userAgent || "",
       navigator.language || "",
       navigator.platform || "",
+      String(navigator.maxTouchPoints || ""),
+      String(navigator.hardwareConcurrency || ""),
+      String(navigator.deviceMemory || ""),
       String(screen.width || ""),
       String(screen.height || ""),
+      String(screen.colorDepth || ""),
       String(new Date().getTimezoneOffset()),
       (Intl.DateTimeFormat().resolvedOptions().timeZone || "")
     ].join("|");
