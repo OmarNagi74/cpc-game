@@ -172,5 +172,11 @@ the visitor's browser localStorage, so closing the tab keeps their place.
 - **Counter not writing to the sheet** → make sure `enabled: true`, the URL
   starts with `https://script.google.com/.../exec`, and the Apps Script was
   deployed with access `Anyone` (not "Anyone with Google account").
+- **Progress "resets" on every scan** → the phone opened the link in an
+  in-app browser (or private mode) that won't let the site save progress.
+  The game now writes to every available store (localStorage, sessionStorage,
+  cookie, memory), which fixes most of these cases. For bulletproof testing,
+  open the station links directly in your normal browser (Safari/Chrome)
+  instead of through a scanner app.
 - **localStorage not saving** → expected in some private/incognito modes; the
   app catches the error and still works for the current visit.

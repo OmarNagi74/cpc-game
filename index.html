@@ -452,14 +452,49 @@
   const NEXT_KEY = "labs_hunt_v1_next";      // assigned next stop (number)
   const SCANS_KEY = "labs_hunt_v1_scans";    // total scans counter
 
-  // ---------------- localStorage helpers (all safe) ----------------
+  // ---------------- persistence layer (multi-backend, safe) ----------------
+  /* The game must keep progress across QR scans. Some phones open QR links in
+     in-app browsers / restricted webviews where localStorage is blocked or
+     wiped — in that case the player would appear to "restart" every time.
+     So we write to EVERY store we can: localStorage (best), then
+     sessionStorage, then a cookie, and finally memory as a last resort.
+     Reading checks them in the same order, so the most durable one wins. */
+  const MEMSTORE = {};
+
+  function readCookieRaw(key) {
+    try {
+      const m = document.cookie.match(new RegExp("(?:^|;\\s*)" + encodeURIComponent(key) + "\\s*=\\s*([^;]*)"));
+      return m ? decodeURIComponent(m[1]) : null;
+    } catch (e) { return null; }
+  }
+
   function storageGet(key) {
-    try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; }
+    let raw = null;
+    try { raw = localStorage.getItem(key); } catch (e) { raw = null; }
+    if (raw == null) { try { raw = sessionStorage.getItem(key); } catch (e) { raw = null; } }
+    if (raw == null) raw = readCookieRaw(key);
+    if (raw == null && Object.prototype.hasOwnProperty.call(MEMSTORE, key)) raw = MEMSTORE[key];
+    if (raw == null) return null;
+    try { return JSON.parse(raw); } catch (e) { return null; }
   }
   function storageSet(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch (e) { return false; }
+    const raw = JSON.stringify(value);
+    MEMSTORE[key] = raw; // always mirrored in memory as a last resort
+    let ok = false;
+    try { localStorage.setItem(key, raw); ok = true; } catch (e) { /* blocked */ }
+    try { sessionStorage.setItem(key, raw); ok = true; } catch (e) { /* blocked */ }
+    try {
+      document.cookie = encodeURIComponent(key) + "=" + encodeURIComponent(raw) + "; path=/; max-age=31536000; SameSite=Lax";
+      ok = true;
+    } catch (e) { /* blocked */ }
+    return ok;
   }
-  function storageRemove(key) { try { localStorage.removeItem(key); } catch (e) { /* ignore */ } }
+  function storageRemove(key) {
+    delete MEMSTORE[key];
+    try { localStorage.removeItem(key); } catch (e) { /* ignore */ }
+    try { sessionStorage.removeItem(key); } catch (e) { /* ignore */ }
+    try { document.cookie = encodeURIComponent(key) + "=; path=/; max-age=0"; } catch (e) { /* ignore */ }
+  }
 
   function getVisited() {
     const v = storageGet(STORAGE_KEY);
