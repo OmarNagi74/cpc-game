@@ -19,7 +19,7 @@
 //    Example: "https://mycommunity.org/hunt/index.html"
 //    No trailing slash needed. The script appends "?station=N" automatically.
 // ============================================================================
-const BASE_URL = "https://example.com/index.html";
+const BASE_URL = "https://cpc-game.vercel.app/index.html";
 
 // ============================================================================
 // 2) STATION NAMES — same names you used in index.html (CONFIG.stationNames).
