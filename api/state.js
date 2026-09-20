@@ -31,8 +31,11 @@ const STATE_TTL_SECONDS = 60 * 60 * 24 * 14; // keep progress 14 days
 module.exports = async function handler(req, res) {
   try {
     if (req.method === "POST") {
-      let body = {};
-      try { body = JSON.parse(req.body || "{}"); } catch (e) { /* ignore */ }
+      let body = req.body;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body || "{}"); } catch (e) { body = {}; }
+      }
+      if (!body || typeof body !== "object" || Array.isArray(body)) body = {};
 
       const visitorId = typeof body.visitorId === "string" ? body.visitorId.slice(0, 128) : "";
       const station = parseInt(body.station, 10);
