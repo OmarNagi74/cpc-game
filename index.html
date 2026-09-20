@@ -431,7 +431,7 @@
        ترجع كاملة من السيرفر. /api/stats يعرض العدادات للمسؤول.
        ============================================================ */
     server: {
-      enabled: false,       // الحفظ المحلي فقط
+      enabled: true,        // المحلي أولًا والسيرفر كنسخة احتياطية
       endpoint: "/api/state" // Vercel Function على نفس الدومين
     }
   };
@@ -553,33 +553,10 @@
     return "d" + (hash >>> 0).toString(36);
   }
 
-  function hasPersistentStorage() {
-    const probe = "labs_hunt_probe";
-    try {
-      localStorage.setItem(probe, "1");
-      const works = localStorage.getItem(probe) === "1";
-      localStorage.removeItem(probe);
-      if (works) return true;
-    } catch (e) { /* try cookies below */ }
-    try {
-      document.cookie = probe + "=1; path=/; SameSite=Lax";
-      const works = readCookieRaw(probe) === "1";
-      document.cookie = probe + "=; path=/; max-age=0";
-      return works;
-    } catch (e) { return false; }
-  }
-
   function getVisitorId() {
     let id = storageGet(VISITOR_KEY);
     if (typeof id === "string" && id.length >= 8) return id;
-    let fresh = "";
-    if (hasPersistentStorage()) {
-      try {
-        if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") fresh = globalThis.crypto.randomUUID();
-      } catch (e) { fresh = ""; }
-    }
-    if (!fresh) fresh = "v" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 12);
-    if (!hasPersistentStorage()) fresh = fallbackVisitorId();
+    const fresh = fallbackVisitorId();
     storageSet(VISITOR_KEY, fresh);
     return fresh;
   }
