@@ -1,0 +1,12 @@
+{
+  "name": "labs-hunt-qrcodes",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Generates the QR codes (per-station PNGs + printable sheet) for the labs scavenger hunt game.",
+  "scripts": {
+    "generate": "node generate_qrcodes.js"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  }
+}

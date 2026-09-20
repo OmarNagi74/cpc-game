@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1d4ed8">
+<meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)">
+<title>خمس مشاكل… حل واحد — لعبة المجتمع</title>
+<!-- Google Font: Cairo (supports Arabic well) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     THEME — colors taken from the community logo:
+       blue  = main action color
+       red   = alerts / streak / celebration accent
+       gold  = rewards, scores & ranks (a little goes here and there)
+     Light is default; dark kicks in when the phone/OS asks.
+     ============================================================ */
+  :root {
+    --bg: #f4f6fb;
+    --card-bg: #ffffff;
+    --card-border: #e3e9f2;
+    --text: #14203c;
+    --text-muted: #5b6a8c;
+
+    --primary: #1d4ed8;          /* logo blue */
+    --primary-strong: #1e40af;
+    --primary-ghost: #e8eefc;
+    --on-primary: #ffffff;
+
+    --accent: #e11d48;           /* logo red */
+    --accent-soft: #ffe4e6;
+
+    --gold: #d99a06;             /* logo gold (small touches) */
+    --gold-strong: #b47a04;
+    --gold-soft: #fdf3d7;
+
+    --rank: #b47a04;
+    --circle-empty: #d9e0ee;
+    --shadow: 0 10px 30px rgba(20, 32, 60, 0.10);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b1220;
+      --card-bg: #131c31;
+      --card-border: #243049;
+      --text: #eef2ff;
+      --text-muted: #93a1c3;
+
+      --primary: #4f7dff;
+      --primary-strong: #6b93ff;
+      --primary-ghost: #1b2a55;
+      --on-primary: #0b1220;
+
+      --accent: #fb4d6d;
+      --accent-soft: #3a1b26;
+
+      --gold: #f5c84c;
+      --gold-strong: #ffd97a;
+      --gold-soft: #3a2f12;
+
+      --rank: #f5c84c;
+      --circle-empty: #26314d;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+
+  body {
+    font-family: "Cairo", -apple-system, system-ui, sans-serif;
+    background:
+      radial-gradient(1200px 500px at 85% -10%, var(--primary-ghost), transparent 60%),
+      radial-gradient(900px 400px at -10% 110%, var(--gold-soft), transparent 60%),
+      var(--bg);
+    background-attachment: fixed;
+    color: var(--text);
+    line-height: 1.6;
+    /* Respect notches / home indicator (viewport-fit=cover) */
+    padding:
+      env(safe-area-inset-top, 0px)
+      env(safe-area-inset-right, 0px)
+      env(safe-area-inset-bottom, 0px)
+      env(safe-area-inset-left, 0px);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  main {
+    width: 100%;
+    max-width: 520px;
+    padding: 20px 18px calc(28px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* ============================================================
+     SCREENS
+     ============================================================ */
+  .screen { display: none; flex-direction: column; gap: 16px; }
+  .screen.active { display: flex; }
+
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    padding: 22px 20px;
+  }
+
+  /* event name mini-bar */
+  .event-bar {
+    text-align: center;
+    color: var(--text-muted);
+    font-weight: 800;
+    font-size: 0.9rem;
+    letter-spacing: 0.3px;
+  }
+
+  /* ============================================================
+     HEADINGS & TEXT
+     ============================================================ */
+  .kicker { color: var(--primary); font-weight: 800; font-size: 0.85rem; margin-bottom: 4px; }
+  h1 { font-size: 1.7rem; font-weight: 900; line-height: 1.35; }
+  h2 { font-size: 1.3rem; font-weight: 800; line-height: 1.4; }
+  .muted { color: var(--text-muted); }
+  .lead { font-size: 1.03rem; }
+  ol li { margin-bottom: 6px; }
+  ul.station-list { padding-right: 20px; }
+
+  /* ============================================================
+     SCORE + RANK (gamification)
+     ============================================================ */
+  .status-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 999px;
+    font-weight: 800; font-size: 0.88rem; white-space: nowrap;
+  }
+  .chip-rank { background: var(--gold-soft); color: var(--rank); border: 1px solid currentColor; }
+  .chip-score { background: var(--card-bg); color: var(--gold-strong); border: 1px solid var(--card-border); box-shadow: var(--shadow); }
+  .chip-score .star { color: var(--gold); }
+  .chip-score.bump { animation: bump 0.35s ease; }
+  @keyframes bump { 50% { transform: scale(1.18); } }
+
+  /* ============================================================
+     PROGRESS — animated filled/empty circles with checkmarks
+     ============================================================ */
+  .progress { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .progress-meta { font-weight: 800; color: var(--text-muted); font-size: 0.92rem; }
+  .circles { display: flex; gap: 9px; }
+  .circle {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--circle-empty);
+    border: 2px dashed var(--card-border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 900; color: transparent;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+    animation: dotIn 0.4s ease backwards;
+  }
+  .circle.done {
+    background: linear-gradient(135deg, var(--gold), var(--gold-strong));
+    border: 2px solid var(--gold);
+    color: var(--card-bg);
+    transform: scale(1.1);
+  }
+  .circle.done::before { content: "✓"; }
+  @keyframes dotIn { from { opacity: 0; transform: scale(0.4); } }
+
+  /* ============================================================
+     BIG NEXT-DESTINATION BOX
+     ============================================================ */
+  .destination-box {
+    background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+    color: var(--on-primary);
+    border-radius: 22px;
+    padding: 28px 18px;
+    text-align: center;
+    box-shadow: 0 14px 34px rgba(29, 78, 216, 0.35);
+    animation: rise 0.45s ease backwards;
+  }
+  .destination-box .label { font-weight: 800; font-size: 0.95rem; opacity: 0.9; display: block; margin-bottom: 8px; }
+  .destination-box .name { font-size: 2.15rem; font-weight: 900; line-height: 1.3; display: block; word-break: break-word; }
+  .destination-box .hint { font-size: 0.88rem; opacity: 0.88; display: block; margin-top: 10px; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+
+  /* note banner — already-visited alert (logo red) */
+  .note {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid currentColor;
+    border-radius: 14px;
+    padding: 14px 16px;
+    font-weight: 700;
+    font-size: 0.96rem;
+  }
+
+  /* ============================================================
+     BUTTONS (large, tap-friendly)
+     ============================================================ */
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; min-height: 56px; padding: 14px 18px;
+    border: none; border-radius: 16px;
+    font-family: inherit; font-size: 1.05rem; font-weight: 800;
+    text-decoration: none; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.08s ease, background 0.2s ease;
+  }
+  .btn:active { transform: scale(0.97); }
+
+  .btn-primary { background: var(--primary); color: var(--on-primary); }
+  .btn-primary:active { background: var(--primary-strong); }
+
+  .btn-links { background: var(--card-bg); color: var(--primary); border: 2px solid var(--primary); }
+  .btn-links:active { background: var(--primary-ghost); }
+
+  .btn-gold { background: linear-gradient(135deg, var(--gold), var(--gold-strong)); color: #ffffff; }
+  .btn-gold:active { filter: brightness(0.95); }
+
+  .btn-row { display: flex; flex-direction: column; gap: 12px; }
+
+  /* ============================================================
+     FINAL SCREEN — trophy, grade, celebration
+     ============================================================ */
+  .final-badge {
+    width: 96px; height: 96px; margin: 0 auto 2px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, var(--gold), var(--gold-strong));
+    color: #ffffff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 3rem; font-weight: 900;
+    box-shadow: 0 14px 40px rgba(217, 154, 6, 0.45);
+    animation: pop 0.6s cubic-bezier(0.2, 1.6, 0.4, 1) backwards;
+  }
+  @keyframes pop { from { transform: scale(0); } }
+
+  .grade {
+    margin: 0 auto 14px; text-align: center;
+    font-weight: 900; font-size: 1.15rem;
+    padding: 10px 22px; border-radius: 999px; border: 2px solid;
+  }
+  .grade-gold  { color: var(--gold-strong); border-color: var(--gold); background: var(--gold-soft); }
+  .grade-silver{ color: var(--text); border-color: #9fb0c6; background: var(--card-bg); }
+  .grade-bronze{ color: #b06a3a; border-color: #cd7f45; background: var(--card-bg); }
+
+  .final-stats { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+  .final-stat { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 8px 16px; font-weight: 800; font-size: 0.92rem; color: var(--text-muted); }
+  .final-stat b { color: var(--text); }
+
+  .links-title { font-weight: 800; color: var(--text-muted); font-size: 0.95rem; text-align: center; margin-bottom: 12px; }
+
+  .footer-note { text-align: center; color: var(--text-muted); font-size: 0.85rem; }
+
+  /* ============================================================
+     TOAST (+points/+rank celebrations)
+     ============================================================ */
+  .toast {
+    position: fixed; top: calc(14px + env(safe-area-inset-top, 0px));
+    left: 50%; transform: translateX(-50%) translateY(-80px);
+    background: var(--card-bg); color: var(--text);
+    border: 1px solid var(--gold); box-shadow: var(--shadow);
+    border-radius: 999px; padding: 10px 22px; font-weight: 800; font-size: 0.95rem;
+    opacity: 0; transition: transform 0.3s ease, opacity 0.3s ease;
+    z-index: 60; pointer-events: none; white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  /* ============================================================
+     CONFETTI (pure CSS/JS, palette from the logo)
+     ============================================================ */
+  .confetti {
+    position: fixed; top: -18px; z-index: 50; pointer-events: none;
+    width: 9px; height: 16px; border-radius: 3px;
+    animation: fall linear forwards;
+  }
+  @keyframes fall {
+    to { transform: translateY(110vh) rotate(740deg); opacity: 0.25; }
+  }
+</style>
+</head>
+<body>
+<main id="app">
+
+  <div class="event-bar" id="event-bar"></div>
+
+  <!-- ==========================================================
+       SCREEN 1: WELCOME / INSTRUCTIONS (no station in URL)
+       ========================================================== -->
+  <section id="screen-welcome" class="screen">
+    <div class="card">
+      <div class="kicker">مطاردة المعامل بقت جاهزة</div>
+      <h1>خمس مشاكل… حل واحد!</h1>
+      <p class="lead" style="margin-top:10px;">
+        كل معمل فيه كود QR سري. امسحه، وكل ما تكمل معمل يتحسبلك نقاط،
+        وآخر المعامل في انتظارك جائزة.
+      </p>
+      <div id="welcome-resume" class="chip chip-rank" style="margin-top:14px;"></div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-bottom:10px;">إزاي تلعب؟</h2>
+      <ol class="lead" style="padding-right:20px;">
+        <li>امسح الكود اللي قدامك — دا أول معمل ليك.</li>
+        <li>اللعبة هتديك المعمل الجاي — روح لحدّ ما توصله وامسح تاني.</li>
+        <li>كرّر وراكرّر، ولفّ الخمس معامل علشان تجيب تحفة الختام.</li>
+      </ol>
+      <p class="muted" style="margin-top:12px;">الترتيب مش مهم أصلًا — أي معمل تبدأ بيه غيّر عن العادي.</p>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-bottom:8px;">معامل اللعبة</h2>
+      <ul class="lead station-list" id="welcome-station-list"></ul>
+    </div>
+  </section>
+
+  <!-- ==========================================================
+       SCREEN 2: STATION RESULT (score, progress, next destination)
+       ========================================================== -->
+  <section id="screen-station" class="screen">
+    <div class="status-row">
+      <div class="chip chip-rank" id="station-rank"></div>
+      <div class="chip chip-score" id="station-score"><span class="star">★</span><span id="station-score-num">0</span></div>
+    </div>
+
+    <div class="progress">
+      <div class="progress-meta" id="station-progress-text"></div>
+      <div class="circles" id="station-progress-circles"></div>
+    </div>
+
+    <div class="card" id="station-visited-card">
+      <div class="kicker" id="station-kicker"></div>
+      <h2 id="station-title"></h2>
+    </div>
+
+    <div class="note" id="station-already" style="display:none;"></div>
+
+    <div class="destination-box">
+      <span class="label">الخطوة الجاية — روح دلوقتي إلى</span>
+      <span class="name" id="station-next-name"></span>
+      <span class="hint" id="station-next-hint"></span>
+    </div>
+  </section>
+
+  <!-- ==========================================================
+       SCREEN 3: FINAL — "you did it!"
+       ========================================================== -->
+  <section id="screen-final" class="screen">
+    <div class="final-badge">★</div>
+    <div class="card" style="text-align:center;">
+      <div class="kicker" id="final-event"></div>
+      <h1 id="final-title"></h1>
+      <p class="lead muted" id="final-message" style="margin-top:10px;"></p>
+      <div class="grade" id="final-grade"></div>
+    </div>
+
+    <div class="card">
+      <div class="links-title">معلومات المجتمع — تابعنا</div>
+      <div class="btn-row" id="final-links"></div>
+    </div>
+
+    <div class="final-stats">
+      <div class="final-stat">نقاطك <b id="final-score">0</b></div>
+      <div class="final-stat">مسحات <b id="final-scans">0</b></div>
+      <div class="final-stat">معامل <b id="final-count">5</b> / 5</div>
+    </div>
+
+    <button class="btn btn-gold" id="final-restart">العب تاني من الأول</button>
+    <p class="footer-note">شكرًا لمشاركتك — مجتمعنا فخور بيك.</p>
+  </section>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  /* ================================================================
+     ================================================================
+     CONFIG — عدّل من هنا (للمنظم)
+     ================================================================
+     ================================================================ */
+
+  const CONFIG = {
+    /* عدد المعامل في اللعبة */
+    totalStations: 5,
+
+    /* أسماء المعامل — عدّل أسماء المعامل الحقيقية هنا.
+       المفتاح = رقم المعمل، القيمة = الاسم اللي بيظهر للزوار. */
+    stationNames: {
+      1: "خيرت",
+      2: "بهاء",
+      3: "البدروم",
+      4: "محمد صبري",
+      5: "انتصارات"
+    },
+
+    /* اسم الفعالية */
+    eventName: "خمس مشاكل… حل واحد",
+
+    /* شاشة النهاية — العنوان والرسالة */
+    finalTitle: "برافو! خلّصت المطاردة",
+    finalMessage: "لفّيت المعامل الخمسة كلها وفتحت تحفة الختام. شكرًا لإنك جزء من مجتمعنا!",
+
+    /* روابط المجتمع اللي بتظهر في النهاية — { label, url } */
+    communityLinks: [
+      { label: "جروب المجتمع على تيليجرام", url: "https://t.me/your_community" },
+      { label: "صفحة المجتمع على فيسبوك",   url: "https://facebook.com/your_community" }
+    ],
+
+    /* ============================================================
+       عداد المسحات — علشان المسؤول يعرف كل واحد مسح كام مرة.
+       شغّله بعد ما تعمل الآتي (شرح كامل في README):
+         1. اعمل Google Sheet جديد.
+         2. افتحه: Extensions → Apps Script.
+         3. الصّق محتوى ملف google_apps_script.gs فيه.
+         4. Deploy → New deployment → Web app → Execute as: Me,
+            Access: Anyone → انسخ الـ URL.
+         5. خُد الـ URL وعطّى under scriptUrl تحت، وغيّر enabled إلى true.
+       من غير الخطوة دي العداد مش بيشتغل — لكن اللعبة شغالة تمامًا.
+       ============================================================ */
+    tracking: {
+      enabled: false,
+      scriptUrl: ""   // ← حط هنا رابط الـ Web app بتاع Apps Script
+    }
+  };
+
+  /* ================================================================
+     GAME TUNING (gamification settings — feel free to tweak)
+     ================================================================ */
+  const GAME = {
+    pointsPerLab: 100,            // نقاط كل معمل جديد
+    finishBonus: 250,             // مكافأة خلاص الرحلة
+    ranks: [                      // دور اللاعب على قد إيه الرحلة كملت
+      "مستكشف جديد",
+      "أول بصمة",
+      "في نص الطريق",
+      "حارق مراحل",
+      "قرب الختام",
+      "بطل المعامل"
+    ]
+  };
+
+  /* ================================================================
+     ================================================================
+     GAME LOGIC — بلاش تعدّل من هنا غير لو عارف JS
+     ================================================================
+     ================================================================ */
+
+  const STORAGE_KEY = "labs_hunt_v1";        // visited station numbers (array)
+  const NEXT_KEY = "labs_hunt_v1_next";      // assigned next stop (number)
+  const SCANS_KEY = "labs_hunt_v1_scans";    // total scans counter
+
+  // ---------------- localStorage helpers (all safe) ----------------
+  function storageGet(key) {
+    try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; }
+  }
+  function storageSet(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch (e) { return false; }
+  }
+  function storageRemove(key) { try { localStorage.removeItem(key); } catch (e) { /* ignore */ } }
+
+  function getVisited() {
+    const v = storageGet(STORAGE_KEY);
+    return Array.isArray(v) ? v.filter(n => Number.isInteger(n) && n >= 1 && n <= CONFIG.totalStations) : [];
+  }
+  function saveVisited(list) { storageSet(STORAGE_KEY, list); }
+
+  function getNextStop() { return storageGet(NEXT_KEY); }
+  function saveNextStop(n) { storageSet(NEXT_KEY, n); }
+  function clearNextStop() { storageRemove(NEXT_KEY); }
+
+  function getScans() {
+    const s = storageGet(SCANS_KEY);
+    return Number.isInteger(s) && s > 0 ? s : 0;
+  }
+  function incrScans() { storageSet(SCANS_KEY, getScans() + 1); }
+
+  function clearAll() {
+    storageRemove(STORAGE_KEY);
+    storageRemove(NEXT_KEY);
+    storageRemove(SCANS_KEY);
+  }
+
+  function stationName(n) {
+    return (CONFIG.stationNames && CONFIG.stationNames[n]) ? CONFIG.stationNames[n] : ("معمل " + n);
+  }
+
+  // ---------------- gamification helpers ----------------
+  function computeScore(visitedCount) {
+    let score = visitedCount * GAME.pointsPerLab;
+    if (visitedCount >= CONFIG.totalStations) score += GAME.finishBonus;
+    return score;
+  }
+  function rankFor(visitedCount) {
+    const list = GAME.ranks;
+    const idx = Math.max(0, Math.min(list.length - 1, visitedCount));
+    return list[idx];
+  }
+  function gradeFor(scans) {
+    if (scans <= CONFIG.totalStations) return { name: "الأسطورة الذهبية", cls: "grade-gold" };
+    if (scans <= CONFIG.totalStations + 2) return { name: "النجم الفضي", cls: "grade-silver" };
+    return { name: "المستكشف البرونزي", cls: "grade-bronze" };
+  }
+
+  // ---------------- scan tracking (Google Apps Script) ----------------
+  function track(payload) {
+    const t = CONFIG.tracking;
+    if (!t || !t.enabled || !t.scriptUrl) return;
+    try {
+      const body = JSON.stringify(Object.assign({
+        timestamp: new Date().toISOString(),
+        event: CONFIG.eventName,
+        userAgent: String(navigator.userAgent || "").slice(0, 120)
+      }, payload));
+      if (navigator.sendBeacon) navigator.sendBeacon(t.scriptUrl, body);
+      else fetch(t.scriptUrl, { method: "POST", body: body, keepalive: true, mode: "no-cors" });
+    } catch (e) { /* tracking must never break the game */ }
+  }
+
+  // ---------------- next-destination logic ----------------
+  function pickNext(current, visited) {
+    const unvisited = [];
+    for (let i = 1; i <= CONFIG.totalStations; i++) {
+      if (!visited.includes(i) && i !== current) unvisited.push(i);
+    }
+    if (unvisited.length === 0) return null;
+    return unvisited[Math.floor(Math.random() * unvisited.length)];
+  }
+
+  /* Reuse the stored next stop when valid (so a re-scan does NOT change
+     the assigned destination); otherwise pick + persist a fresh one. */
+  function resolveNext(current, visited) {
+    let next = getNextStop();
+    if (next == null || next === current || !Number.isInteger(next) || visited.includes(next) || next < 1 || next > CONFIG.totalStations) {
+      next = pickNext(current, visited);
+      if (next != null) saveNextStop(next);
+    }
+    return next;
+  }
+
+  // ---------------- DOM helpers ----------------
+  function showScreen(id) {
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+    try { window.scrollTo(0, 0); } catch (e) { /* ignore */ }
+  }
+
+  function toast(msg) {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.remove("show");
+    void el.offsetWidth; // restart the transition
+    el.classList.add("show");
+    setTimeout(() => el.classList.remove("show"), 1700);
+  }
+
+  function confettiBurst(count) {
+    const COLORS = ["#1d4ed8", "#e11d48", "#f5c84c", "#4f7dff", "#fb4d6d"];
+    for (let i = 0; i < count; i++) {
+      const c = document.createElement("div");
+      c.className = "confetti";
+      c.style.left = (Math.random() * 100) + "vw";
+      c.style.background = COLORS[i % COLORS.length];
+      c.style.animationDuration = (1.6 + Math.random() * 1.6) + "s";
+      c.style.transform = "rotate(" + (Math.random() * 360) + "deg)";
+      document.body.appendChild(c);
+      setTimeout(() => c.remove(), 3800);
+    }
+  }
+
+  function bumpScore() {
+    const el = document.getElementById("station-score");
+    el.classList.remove("bump");
+    void el.offsetWidth;
+    el.classList.add("bump");
+  }
+
+  function buildProgress(visited) {
+    const done = visited.length;
+    document.getElementById("station-progress-text").textContent =
+      "زيارة " + done + " من " + CONFIG.totalStations;
+
+    const circles = document.getElementById("station-progress-circles");
+    circles.innerHTML = "";
+    for (let i = 1; i <= CONFIG.totalStations; i++) {
+      const c = document.createElement("div");
+      c.className = "circle" + (visited.includes(i) ? " done" : "");
+      c.title = stationName(i);
+      c.style.animationDelay = (i * 60) + "ms";
+      circles.appendChild(c);
+    }
+  }
+
+  function refreshScore(visitedCount) {
+    document.getElementById("station-score-num").textContent = computeScore(visitedCount);
+    document.getElementById("station-rank").textContent = "- " + rankFor(visitedCount);
+  }
+
+  // ---------------- screen renderers ----------------
+  function renderWelcome() {
+    document.getElementById("event-bar").textContent = CONFIG.eventName;
+
+    const visited = getVisited();
+    const resume = document.getElementById("welcome-resume");
+    if (visited.length > 0) {
+      resume.textContent = "في رحلة شغالة: عندك " + visited.length + " من " + CONFIG.totalStations + " — كمّل!";
+    } else {
+      resume.textContent = "جاهز تبدأ؟ أي معمل يقابل عينك…";
+    }
+
+    const list = document.getElementById("welcome-station-list");
+    list.innerHTML = "";
+    for (let i = 1; i <= CONFIG.totalStations; i++) {
+      const li = document.createElement("li");
+      li.textContent = stationName(i);
+      list.appendChild(li);
+    }
+    showScreen("screen-welcome");
+  }
+
+  function renderFinal(visitedCount, scans) {
+    document.getElementById("event-bar").textContent = CONFIG.eventName;
+    document.getElementById("final-title").textContent = CONFIG.finalTitle;
+    document.getElementById("final-message").textContent = CONFIG.finalMessage;
+
+    const g = gradeFor(scans);
+    const gradeEl = document.getElementById("final-grade");
+    gradeEl.className = "grade " + g.cls;
+    gradeEl.textContent = "جايزتك: " + g.name;
+
+    document.getElementById("final-score").textContent = computeScore(visitedCount);
+    document.getElementById("final-scans").textContent = scans;
+    document.getElementById("final-count").textContent = CONFIG.totalStations;
+
+    const wrap = document.getElementById("final-links");
+    wrap.innerHTML = "";
+    (CONFIG.communityLinks || []).forEach(link => {
+      const a = document.createElement("a");
+      a.className = "btn btn-links";
+      a.href = link.url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.textContent = link.label;
+      wrap.appendChild(a);
+    });
+
+    showScreen("screen-final");
+    confettiBurst(44);
+  }
+
+  function renderStation(current, wasAlreadyVisited, next, gainedPoints) {
+    const visited = getVisited();
+    const scanned = getScans();
+
+    document.getElementById("event-bar").textContent = CONFIG.eventName;
+    buildProgress(visited);
+    refreshScore(visited.length);
+
+    if (wasAlreadyVisited) {
+      document.getElementById("station-kicker").textContent = "لقد زرتَ هذا المعمل من قبل";
+      document.getElementById("station-title").textContent = stationName(current);
+    } else {
+      document.getElementById("station-kicker").textContent = "أحسنت! وصّلت إلى";
+      document.getElementById("station-title").textContent = stationName(current);
+    }
+
+    const noteEl = document.getElementById("station-already");
+    if (wasAlreadyVisited) {
+      noteEl.textContent = "المعمل ده مسجّل في رصيدك خلاص ومش هيضيفلك نقاط تانية — بس نفس الخطوة الجاية لسه واقفة في انتظارك.";
+      noteEl.style.display = "block";
+    } else {
+      noteEl.style.display = "none";
+    }
+
+    if (next != null) {
+      document.getElementById("station-next-name").textContent = stationName(next);
+      document.getElementById("station-next-hint").textContent =
+        "دي مسحة رقم " + scanned + " في رحلتك — كمّل للمعمل ده وامسح الكود بتاعه!";
+    } else {
+      document.getElementById("station-next-name").textContent = "باقي معمل واحد بس!";
+      document.getElementById("station-next-hint").textContent = "";
+    }
+
+    if (gainedPoints > 0) {
+      bumpScore();
+      toast("+" + gainedPoints + " نقطة ★");
+    }
+
+    showScreen("screen-station");
+  }
+
+  // ---------------- main ----------------
+  function run() {
+    const params = new URLSearchParams(window.location.search);
+    const reset = params.get("reset");
+    const rawStation = params.get("station");
+
+    if (reset === "1") {
+      clearAll();
+    }
+
+    if (rawStation == null || rawStation === "") {
+      renderWelcome();
+      return;
+    }
+
+    const station = parseInt(rawStation, 10);
+    if (!Number.isInteger(station) || station < 1 || station > CONFIG.totalStations) {
+      renderWelcome();
+      return;
+    }
+
+    const scanned = getScans();
+    incrScans();
+
+    const visited = getVisited();
+    const wasAlreadyVisited = visited.includes(station);
+    let gainedPoints = 0;
+    if (!wasAlreadyVisited) {
+      visited.push(station);
+      saveVisited(visited);
+      gainedPoints = GAME.pointsPerLab;
+    }
+
+    track({ station: station, kind: wasAlreadyVisited ? "repeat" : "new", visitedCount: visited.length });
+
+    if (visited.length >= CONFIG.totalStations) {
+      clearNextStop();
+      track({ kind: "complete", visitedCount: visited.length, totalScans: scanned + 1 });
+      renderFinal(visited.length, scanned + 1);
+      return;
+    }
+
+    const next = resolveNext(station, visited);
+    renderStation(station, wasAlreadyVisited, next, gainedPoints);
+  }
+
+  document.getElementById("final-restart").addEventListener("click", function () {
+    clearAll();
+    renderWelcome();
+  });
+
+  run();
+</script>
+</body>
+</html>
